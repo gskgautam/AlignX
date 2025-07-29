@@ -1,3 +1,5 @@
+#Prompt Injection
+
 import os
 import pandas as pd
 
@@ -33,7 +35,7 @@ print("=== Injection CSV Test (first 5 rows) ===")
 df_prompt_test = pd.read_csv(PROMPT_CSV_TEST)
 print(df_prompt_test.head())
 
-
+#Pipeline
 
 import os
 import json
@@ -67,20 +69,9 @@ def load_injection_csv():
     df_te = pd.read_csv(PROMPT_CSV_TEST)
     return df_tr, df_te
 
-def prepend_cot(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Inject a simple CoT prefix into every instruction:
-      "Chain of Thought: Let's think step by step. "
-    """
-    df = df.copy()
-    df["instruction"] = (
-        "Chain of Thought: Let's think step by step. " + df["instruction"].astype(str)
-    )
-    return df
-
 def tokenize_df(tokenizer, df: pd.DataFrame, device, max_length=512):
     """
-    Tokenize and wrap into 🤗 Dataset.
+    Tokenize and wrap into Dataset.
     - Always use df['instruction']
     - Safely get df['input'] (or empty string if missing)
     """
@@ -117,11 +108,11 @@ def print_trainable_parameters(model):
         total += p.numel()
         if p.requires_grad:
             trainable += p.numel()
-    print(f"🔢 Trainable params: {trainable}/{total} ({100*trainable/total:.2f}%)")
+    print(f" Trainable params: {trainable}/{total} ({100*trainable/total:.2f}%)")
 
 def train_adapter(
     base_model, tokenizer, train_ds, eval_ds, adapter_name, device,
-    num_epochs=1, batch_size=2, lr=5e-4
+    num_epochs=3, batch_size=2, lr=5e-4
 ):
     """
     Attach a new LoRA adapter onto `base_model`, train it on train_ds,
@@ -131,7 +122,7 @@ def train_adapter(
     # 1) configure LoRA
     lora_cfg = LoraConfig(r=64, lora_alpha=32, lora_dropout=0.1)
     model = get_peft_model(base_model, lora_cfg).to(device)
-    print(f"\n▶️ Training LoRA adapter `{adapter_name}`")
+    print(f"\n Training LoRA adapter `{adapter_name}`")
     print_trainable_parameters(model)
 
     # 2) Trainer
@@ -158,7 +149,7 @@ def train_adapter(
     trainer.train()
 
     # 4) sanity‐check some norms
-    print("🔍 Checking updated LoRA layers:")
+    print("Checking updated LoRA layers:")
     for n,p in model.named_parameters():
         if p.requires_grad:
             print(f" • {n:60} ∥ {torch.norm(p).item(): .4f}")
@@ -181,9 +172,9 @@ def compute_task_vector(base_model, adapted_model, out_path="task_vector.pt"):
             if torch.norm(d) > 0:
                 diff[k] = d
     if not diff:
-        raise RuntimeError("❌ No differences found! Did adapters actually train?")
+        raise RuntimeError("No differences found! Did adapters actually train?")
     torch.save(diff, out_path)
-    print(f"✅ Task vector saved → `{out_path}` ({len(diff)} layers)")
+    print(f"Task vector saved → `{out_path}` ({len(diff)} layers)")
     return diff
 
 def apply_task_vector(base_model, task_vector, gamma=1.0):
@@ -200,7 +191,7 @@ def apply_task_vector(base_model, task_vector, gamma=1.0):
 def main():
     # device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"✅ Device: {device}")
+    print(f"Device: {device}")
 
     # tokenizer & base_model
     tok = AutoTokenizer.from_pretrained("meta-llama/Llama-2-7b-hf")
@@ -220,36 +211,6 @@ def main():
         adapter_name="alpaca_helpfulness",
         device=device,
     )
-
-    # ── Stage 2: Injection CSV w/ CoT ──────────────────────────────────
-    df_tr_csv, df_te_csv = load_injection_csv()
-    # prepend our simple CoT prefix
-    df_tr_csv = prepend_cot(df_tr_csv)
-    df_te_csv = prepend_cot(df_te_csv)
-
-    ds_train_cot = tokenize_df(tok, df_tr_csv, device)
-    ds_eval_cot  = tokenize_df(tok, df_te_csv,  device)
-
-    adapter2 = train_adapter(
-        base_model=adapter1,          # continue from adapter1
-        tokenizer=tok,
-        train_ds=ds_train_cot,
-        eval_ds=ds_eval_cot,
-        adapter_name="alpaca_inject_CoT",
-        device=device,
-    )
-
-    # ── Compute & apply Task-Vector → Final Model ──────────────────────
-    tv = compute_task_vector(base, adapter2, out_path="task_vector.pt")
-
-    # gamma = 1.0 (full contribution)
-    final = apply_task_vector(base, tv, gamma=1.0)
-    final.save_pretrained("./results/final_model")
-    print("🎉 Final model saved under `./results/final_model`")
-
-if __name__=="__main__":
-    main()
-
 
 # # Step:1
 
@@ -289,7 +250,7 @@ def get_single_prompt_col(df: pd.DataFrame) -> str:
         raise ValueError(f"Expected exactly one column in injection CSV, got: {cols}")
     return cols[0]
 
-def prepend_cot(df: pd.DataFrame, prompt_col: str) -> pd.DataFrame:
+def prepend_col(df: pd.DataFrame, prompt_col: str) -> pd.DataFrame:
     print("[3/8] Prepending Chain‑of‑Thought prefix to column", prompt_col)
     df = df.copy()
     df[prompt_col] = (
@@ -329,13 +290,13 @@ def print_trainable_parameters(model):
         total += p.numel()
         if p.requires_grad:
             trainable += p.numel()
-    print(f"    🔢 Trainable params: {trainable}/{total} ({100*trainable/total:.2f}%)")
+    print(f" Trainable params: {trainable}/{total} ({100*trainable/total:.2f}%)")
 
 def train_adapter(
     base_model, tokenizer, train_ds, eval_ds, adapter_name, device,
-    num_epochs=1, batch_size=2, lr=5e-4
+    num_epochs=3, batch_size=2, lr=5e-4
 ):
-    print(f"\n▶️ Training LoRA adapter `{adapter_name}`")
+    print(f"\n Training LoRA adapter `{adapter_name}`")
     lora_cfg = LoraConfig(r=64, lora_alpha=32, lora_dropout=0.1)
     model = get_peft_model(base_model, lora_cfg).to(device)
     print_trainable_parameters(model)
@@ -358,15 +319,15 @@ def train_adapter(
         eval_dataset=eval_ds,
     )
     trainer.train()
-    print(f"    • Finished training `{adapter_name}`.")
+    print(f"    Finished training `{adapter_name}`.")
 
-    print("    🔍 Checking updated LoRA layers:")
+    print("    Checking updated LoRA layers:")
     for n,p in model.named_parameters():
         if p.requires_grad:
             print(f"      • {n:60} ∥ norm {torch.norm(p).item(): .4f}")
 
     model.save_pretrained(f"./results/{adapter_name}")
-    print(f"    ✅ Adapter saved to ./results/{adapter_name}")
+    print(f"   Adapter saved to ./results/{adapter_name}")
     return model
 
 def compute_task_vector(base_model, adapted_model, out_path="task_vector.pt"):
@@ -380,9 +341,9 @@ def compute_task_vector(base_model, adapted_model, out_path="task_vector.pt"):
             if torch.norm(d) > 0:
                 diff[k] = d
     if not diff:
-        raise RuntimeError("❌ No differences found! Did adapters actually train?")
+        raise RuntimeError("No differences found! Did adapters actually train?")
     torch.save(diff, out_path)
-    print(f"    ✅ Task vector saved → `{out_path}` ({len(diff)} layers)")
+    print(f"    Task vector saved → `{out_path}` ({len(diff)} layers)")
     return diff
 
 def apply_task_vector(base_model, task_vector, gamma=1.0):
@@ -398,13 +359,13 @@ def apply_task_vector(base_model, task_vector, gamma=1.0):
 def main():
     print("[0/8] Starting training pipeline…")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"    ✅ Device: {device}")
+    print(f"    Device: {device}")
 
     print("[1/8] Loading tokenizer and base model…")
     tok = AutoTokenizer.from_pretrained("meta-llama/Llama-2-7b-hf")
     tok.pad_token = tok.eos_token
     base = AutoModelForCausalLM.from_pretrained("meta-llama/Llama-2-7b-hf").to(device)
-    print("    ✅ Base model loaded.")
+    print("    Base model loaded.")
 
     # Stage 1
     df_train_j, df_test_j = load_alpaca_json()
@@ -416,12 +377,12 @@ def main():
     df_tr_csv, df_te_csv = load_injection_csv()
     prompt_col = get_single_prompt_col(df_tr_csv)
 
-    df_tr_csv = prepend_cot(df_tr_csv, prompt_col)
-    df_te_csv = prepend_cot(df_te_csv, prompt_col)
+    df_tr_csv = prepend_col(df_tr_csv, prompt_col)
+    df_te_csv = prepend_col(df_te_csv, prompt_col)
 
-    ds_train_cot = tokenize_df(tok, df_tr_csv, prompt_col, device)
-    ds_eval_cot  = tokenize_df(tok, df_te_csv,  prompt_col, device)
-    adapter2     = train_adapter(adapter1, tok, ds_train_cot, ds_eval_cot, "alpaca_inject_CoT", device)
+    ds_train_col = tokenize_df(tok, df_tr_csv, prompt_col, device)
+    ds_eval_col  = tokenize_df(tok, df_te_csv,  prompt_col, device)
+    adapter2     = train_adapter(adapter1, tok, ds_train_col, ds_eval_col, "alpaca_inject_col", device)
 
     # Task Vector & final save
     tv    = compute_task_vector(base, adapter2)
@@ -433,7 +394,7 @@ if __name__=="__main__":
     main()
 
 
-# >>> Continue from after “✅ Adapter saved to ./results/alpaca_helpfulness”
+# >>> Continue from after “Adapter saved to ./results/alpaca_helpfulness”
 
 import torch
 import pandas as pd
@@ -463,7 +424,7 @@ df_tr = pd.read_csv(PROMPT_CSV_TRAIN)
 df_te = pd.read_csv(PROMPT_CSV_TEST)
 prompt_col = df_tr.columns[0]
 
-# Prepend CoT
+# Prepend 
 df_tr[prompt_col] = "Chain of Thought: Let's think step by step. " + df_tr[prompt_col].astype(str)
 df_te[prompt_col] = "Chain of Thought: Let's think step by step. " + df_te[prompt_col].astype(str)
 
@@ -481,16 +442,16 @@ def make_dataset(df):
         enc[k] = enc[k].to(device)
     return Dataset.from_dict(enc)
 
-ds_tr_cot = make_dataset(df_tr)
-ds_te_cot = make_dataset(df_te)
+ds_tr_col = make_dataset(df_tr)
+ds_te_col = make_dataset(df_te)
 
 # 3) Train second adapter with remove_unused_columns=False
 lora_cfg = LoraConfig(r=64, lora_alpha=32, lora_dropout=0.1)
 model2 = get_peft_model(adapter1, lora_cfg).to(device)
 
 args2 = TrainingArguments(
-    output_dir="./results/alpaca_inject_CoT",
-    num_train_epochs=1,
+    output_dir="./results/alpaca_inject",
+    num_train_epochs=3,
     per_device_train_batch_size=2,
     learning_rate=5e-4,
     logging_steps=10,
@@ -503,13 +464,13 @@ args2 = TrainingArguments(
 trainer2 = Trainer(
     model=model2,
     args=args2,
-    train_dataset=ds_tr_cot,
-    eval_dataset=ds_te_cot,
+    train_dataset=ds_tr_col,
+    eval_dataset=ds_te_col,
 )
 
 trainer2.train()
-model2.save_pretrained("./results/alpaca_inject_CoT")
-print("✅ Adapter saved to ./results/alpaca_inject_CoT")
+model2.save_pretrained("./results/alpaca_inject")
+print("Adapter saved to ./results/alpaca_inject")
 
 
 
@@ -519,35 +480,35 @@ from transformers import AutoModelForCausalLM
 from peft import PeftModel
 
 # ─── Setup ────────────────────────────────────────────────────────────
-print("🔄 Cleaning up and setting device…")
+print("Cleaning up and setting device…")
 gc.collect()
 torch.cuda.empty_cache()
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print(f"✅ Using device: {device}\n")
+print(f"Using device: {device}\n")
 
 # ─── 1) Load base model ──────────────────────────────────────────────
-print("1/5 ▶ Loading base Llama-2-7b model…")
+print("1/5 Loading base Llama-2-7b model…")
 base_model = AutoModelForCausalLM.from_pretrained(
     "meta-llama/Llama-2-7b-hf"
 ).to(device)
-print("   ✅ Base model loaded.\n")
+print("  Base model loaded.\n")
 
 # ─── 2) Load the second adapter ───────────────────────────────────────
-print("2/5 ▶ Loading PEFT adapter 'alpaca_inject_CoT'…")
+print("2/5 Loading PEFT adapter 'alpaca_inject'…")
 adapter2 = PeftModel.from_pretrained(
     base_model,
-    "./results/alpaca_inject_CoT"
+    "./results/alpaca_inject"
 ).to(device)
-print("   ✅ Adapter loaded.\n")
+print("   Adapter loaded.\n")
 
 # ─── 3) Merge adapter into base ───────────────────────────────────────
-print("3/5 ▶ Merging adapter into base weights…")
+print("3/5 Merging adapter into base weights…")
 merged_model = adapter2.merge_and_unload()
 merged_model.to(device)
-print("   ✅ Adapter merged.\n")
+print("   Adapter merged.\n")
 
 # ─── 4) Compute and save task vector ──────────────────────────────────
-print("4/5 ▶ Computing task vector (merged – base)…")
+print("4/5 Computing task vector (merged – base)…")
 base_sd   = base_model.state_dict()
 merged_sd = merged_model.state_dict()
 task_vector = {}
@@ -557,16 +518,16 @@ for k, v in merged_sd.items():
         if torch.norm(delta) > 0:
             task_vector[k] = delta.cpu()
 torch.save(task_vector, "task_vector.pt")
-print(f"   ✅ Task vector saved ( {len(task_vector)} layers )\n")
+print(f"   Task vector saved ( {len(task_vector)} layers )\n")
 
 # ─── 5) Apply task vector and save final model ────────────────────────
-print("5/5 ▶ Applying task vector and saving final fused model…")
+print("5/5 Applying task vector and saving final fused model…")
 sd = base_model.state_dict()
 for k, v in task_vector.items():
     sd[k] = sd[k] + v.to(device)
 base_model.load_state_dict(sd)
 base_model.save_pretrained("./results/final_model")
-print("   🎉 Final fused model saved under './results/final_model'")
+print("  Final fused model saved under './results/final_model'")
 
 
 # # Step 2A: Train a new LoRA adapter on the BeaverTails prompts
@@ -581,33 +542,31 @@ from datasets import Dataset
 # ── 0) Cleanup & device ───────────────────────────────────────────────
 gc.collect(); torch.cuda.empty_cache()
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print(f"✅ Using device: {device}\n")
+print(f" Using device: {device}\n")
 
 # ── 1) Reload the fused model from Step 1 ─────────────────────────────
-print("1/5 ▶ Loading fused model from Step 1…")
+print("1/5 Loading fused model from Step 1…")
 base_model = AutoModelForCausalLM.from_pretrained("./results/final_model").to(device)
-print("   ✅ Base model loaded.\n")
+print(" Base model loaded.\n")
 
 # ── 1.1) Load tokenizer ──────────────────────────────────────────────
-print("1.1 ▶ Loading tokenizer…")
+print("1.1 Loading tokenizer…")
 tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-2-7b-hf")
 tokenizer.pad_token = tokenizer.eos_token
-print("     ✅ Tokenizer ready.\n")
+print("    Tokenizer ready.\n")
 
 # ── 2) Load BeaverTails CSVs ──────────────────────────────────────────
-print("2/5 ▶ Reading BeaverTails train/test CSVs…")
+print("2/5 Reading BeaverTails train/test CSVs…")
 bt_train = pd.read_csv("")
 bt_test  = pd.read_csv("")
 print(f"   • Train rows: {len(bt_train)}, Test rows: {len(bt_test)}\n")
 
-# ── 3) Detect prompt column & prepend COT ────────────────────────────
+# ── 3) Detect prompt column & prepend ────────────────────────────
 prompt_col = bt_train.columns[0]
-print(f"3/5 ▶ Using single prompt column: '{prompt_col}'")
-bt_train[prompt_col] = "Chain of Thought: Let's think step by step. " + bt_train[prompt_col].astype(str)
-bt_test [prompt_col] = "Chain of Thought: Let's think step by step. " + bt_test [prompt_col].astype(str)
-print("   ✅ CoT prefix added.\n")
+print(f"3/5 Using single prompt column: '{prompt_col}'")
+print("   prefix added.\n")
 
-# ── 4) Tokenize into 🤗 Dataset ───────────────────────────────────────
+# ── 4) Tokenize into Dataset ───────────────────────────────────────
 def make_dataset(df):
     enc = tokenizer(
         df[prompt_col].tolist(),
@@ -620,19 +579,19 @@ def make_dataset(df):
     for k in enc: enc[k] = enc[k].to(device)
     return Dataset.from_dict(enc)
 
-print("4/5 ▶ Tokenizing…")
+print("4/5 Tokenizing…")
 ds_bt_tr = make_dataset(bt_train)
 ds_bt_te = make_dataset(bt_test)
-print("   ✅ Tokenization complete.\n")
+print("   Tokenization complete.\n")
 
 # ── 5) Train second adapter (BeaverTails) ─────────────────────────────
-print("5/5 ▶ Training BeaverTails LoRA adapter…")
+print("5/5 Training BeaverTails LoRA adapter…")
 lora_cfg = LoraConfig(r=64, lora_alpha=32, lora_dropout=0.1)
 adapter_bt = get_peft_model(base_model, lora_cfg).to(device)
 
 args_bt = TrainingArguments(
     output_dir="./results/beavertails_adapter1",
-    num_train_epochs=1,
+    num_train_epochs=3,
     per_device_train_batch_size=2,
     learning_rate=5e-4,
     logging_steps=10,
@@ -649,11 +608,11 @@ trainer_bt = Trainer(
 )
 trainer_bt.train()
 adapter_bt.save_pretrained("./results/beavertails_adapter1")
-print("   ✅ BeaverTails adapter saved to ./results/beavertails_adapter1")
+print("   BeaverTails adapter saved to ./results/beavertails_adapter1")
 
 
 
-# >>> Continue from after “✅ BeaverTails adapter saved to ./results/beavertails_adapter1”
+# >>> Continue from after “BeaverTails adapter saved to ./results/beavertails_adapter1”
 
 import torch
 import gc
@@ -665,28 +624,26 @@ from datasets import Dataset
 # ── 0) Cleanup & device ───────────────────────────────────────────────
 gc.collect(); torch.cuda.empty_cache()
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print(f"✅ Using device: {device}\n")
+print(f"Using device: {device}\n")
 
 # ── 1) Reload base + BeaverTails adapter from Block 1 ─────────────────
-print("1/6 ▶ Loading base model and BeaverTails adapter from Block 1…")
+print("1/6 Loading base model and BeaverTails adapter from Block 1…")
 tokenizer  = AutoTokenizer.from_pretrained("meta-llama/Llama-2-7b-hf")
 tokenizer.pad_token = tokenizer.eos_token
 base_model = AutoModelForCausalLM.from_pretrained("./results/final_model").to(device)
 adapter_bt1 = PeftModel.from_pretrained(base_model, "./results/beavertails_adapter1").to(device)
-print("   ✅ Loaded base + adapter1.\n")
+print("Loaded base + adapter1.\n")
 
 # ── 2) Load BeaverTails CSVs again ────────────────────────────────────
-print("2/6 ▶ Reading BeaverTails train/test CSVs…")
+print("2/6 Reading BeaverTails train/test CSVs…")
 df_tr = pd.read_csv("")
 df_te = pd.read_csv("")
 print(f"   • Train rows: {len(df_tr)}, Test rows: {len(df_te)}\n")
 
-# ── 3) Prepend CoT ───────────────────────────────────────────────────
+# ── 3) Prepend ───────────────────────────────────────────────────
 prompt_col = df_tr.columns[0]
-print(f"3/6 ▶ Prepending CoT to column '{prompt_col}'")
-df_tr[prompt_col] = "Chain of Thought: Let's think step by step. " + df_tr[prompt_col].astype(str)
-df_te[prompt_col] = "Chain of Thought: Let's think step by step. " + df_te[prompt_col].astype(str)
-print("   ✅ CoT prefix added.\n")
+print(f"3/6 Prepending to column '{prompt_col}'")
+print("   prefix added.\n")
 
 # ── 4) Tokenize ──────────────────────────────────────────────────────
 def make_dataset(df):
@@ -701,19 +658,19 @@ def make_dataset(df):
     for k in enc: enc[k] = enc[k].to(device)
     return Dataset.from_dict(enc)
 
-print("4/6 ▶ Tokenizing…")
+print("4/6 Tokenizing…")
 ds_tr_bt = make_dataset(df_tr)
 ds_te_bt = make_dataset(df_te)
-print("   ✅ Tokenization complete.\n")
+print("  Tokenization complete.\n")
 
 # ── 5) Train second BeaverTails adapter ───────────────────────────────
-print("5/6 ▶ Training second BeaverTails LoRA adapter…")
+print("5/6 Training second BeaverTails LoRA adapter…")
 lora_cfg = LoraConfig(r=64, lora_alpha=32, lora_dropout=0.1)
 adapter_bt2 = get_peft_model(adapter_bt1, lora_cfg).to(device)
 
 args2 = TrainingArguments(
     output_dir="./results/beavertails_adapter2",
-    num_train_epochs=1,
+    num_train_epochs=3,
     per_device_train_batch_size=2,
     learning_rate=5e-4,
     logging_steps=10,
@@ -730,7 +687,7 @@ trainer2 = Trainer(
 )
 trainer2.train()
 adapter_bt2.save_pretrained("./results/beavertails_adapter2")
-print("   ✅ BeaverTails adapter2 saved to ./results/beavertails_adapter2\n")
+print("   BeaverTails adapter2 saved to ./results/beavertails_adapter2\n")
 
 # ── 6) Summary ────────────────────────────────────────────────────────
 print("Block 2 complete: new adapter at ./results/beavertails_adapter2")
@@ -743,22 +700,22 @@ from peft import PeftModel
 # ── 0) Cleanup & device ───────────────────────────────────────────────
 gc.collect(); torch.cuda.empty_cache()
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print(f"✅ Using device: {device}\n")
+print(f" Using device: {device}\n")
 
 # ── 1) Load the fused model from Step 1 and then the 2nd BeaverTails adapter ───
-print("1/4 ▶ Loading base fused model and BeaverTails adapter2…")
+print("1/4 Loading base fused model and BeaverTails adapter2…")
 base = AutoModelForCausalLM.from_pretrained("./results/final_model").to(device)
 peft_bt2 = PeftModel.from_pretrained(base, "./results/beavertails_adapter2").to(device)
-print("   ✅ Loaded base + adapter2.\n")
+print("   Loaded base + adapter2.\n")
 
 # ── 2) Merge & unload the PEFT adapter ────────────────────────────────────
-print("2/4 ▶ Merging BeaverTails adapter2 into base…")
+print("2/4 Merging BeaverTails adapter2 into base…")
 merged = peft_bt2.merge_and_unload().to(device)
 del peft_bt2; gc.collect(); torch.cuda.empty_cache()
-print("   ✅ Merge complete.\n")
+print("   Merge complete.\n")
 
 # ── 3) Compute task vector ───────────────────────────────────────────────
-print("3/4 ▶ Computing BeaverTails task vector…")
+print("3/4 Computing BeaverTails task vector…")
 bv = {}
 base_sd   = base.state_dict()
 merged_sd = merged.state_dict()
@@ -768,10 +725,10 @@ for k, v in merged_sd.items():
         if torch.norm(delta) > 0:
             bv[k] = delta.cpu()
 torch.save(bv, "./results/beavertails_task_vector.pt")
-print(f"   ✅ Saved task vector ({len(bv)} layers)\n")
+print(f"   Saved task vector ({len(bv)} layers)\n")
 
 # ── 4) Apply task vector & save final fused model ───────────────────────
-print("4/4 ▶ Applying task vector and saving final model…")
+print("4/4 Applying task vector and saving final model…")
 sd = base.state_dict()
 for k, v in bv.items():
     sd[k] = sd[k] + v.to(device)
@@ -790,35 +747,33 @@ from peft import get_peft_model, LoraConfig
 from datasets import Dataset
 
 # 0) Cleanup & device
-print("🔄 Clearing GPU cache…")
+print(" Clearing GPU cache…")
 gc.collect(); torch.cuda.empty_cache()
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print(f"✅ Using device: {device}\n")
+print(f" Using device: {device}\n")
 
 # 1) Reload both fused models from Step 1 & Step 2
-print("1/6 ▶ Loading Alpaca‐only and Alpaca+BeaverTails fused models…")
+print("1/6 Loading Alpaca‐only and Alpaca+BeaverTails fused models…")
 alpaca_model = AutoModelForCausalLM.from_pretrained("./results/final_model").to(device)
 beaver_model = AutoModelForCausalLM.from_pretrained("./results/final_model_beavertails").to(device)
-print("   ✅ Both base models loaded.\n")
+print("   Both base models loaded.\n")
 
 # 2) Load tokenizer
-print("2/6 ▶ Loading tokenizer…")
+print("2/6 Loading tokenizer…")
 tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-2-7b-hf")
 tokenizer.pad_token = tokenizer.eos_token
-print("   ✅ Tokenizer ready.\n")
+print("   Tokenizer ready.\n")
 
 # 3) Read TruthfulQA CSVs
-print("3/6 ▶ Reading TruthfulQA train/test CSVs…")
+print("3/6 Reading TruthfulQA train/test CSVs…")
 qa_train = pd.read_csv("")
 qa_test  = pd.read_csv("")
-print(f"   • Train rows: {len(qa_train)}, Test rows: {len(qa_test)}\n")
+print(f"   Train rows: {len(qa_train)}, Test rows: {len(qa_test)}\n")
 
-# 4) Prepend CoT
+# 4) Prepend 
 prompt_col = qa_train.columns[0]
-print(f"4/6 ▶ Prepending CoT to column '{prompt_col}'…")
-qa_train[prompt_col] = "Chain of Thought: Let's think step by step. " + qa_train[prompt_col].astype(str)
-qa_test [prompt_col] = "Chain of Thought: Let's think step by step. " + qa_test [prompt_col].astype(str)
-print("   ✅ CoT added.\n")
+print(f"4/6 Prepending to column '{prompt_col}'…")
+print("   added.\n")
 
 # 5) Tokenize helper
 def make_ds(df, model_name):
@@ -835,18 +790,18 @@ def make_ds(df, model_name):
 # produce datasets once
 ds_tr = make_ds(qa_train, "TruthfulQA")
 ds_te = make_ds(qa_test,  "TruthfulQA")
-print("   ✅ Tokenization complete.\n")
+print("   Tokenization complete.\n")
 
 # 6) Fine‐tune two adapters in parallel
 for base, tag in [(alpaca_model, "alpaca"), (beaver_model, "beavertails")]:
-    print(f"▶ Training Honesty adapter on '{tag}' base…")
+    print(f"Training Honesty adapter on '{tag}' base…")
     cfg = LoraConfig(r=64, lora_alpha=32, lora_dropout=0.1)
     adapter = get_peft_model(base, cfg).to(device)
 
     out_dir = f"./results/step3/truthfulqa_honesty1_{tag}"
     args = TrainingArguments(
         output_dir=out_dir,
-        num_train_epochs=1,
+        num_train_epochs=3,
         per_device_train_batch_size=2,
         learning_rate=5e-4,
         logging_steps=10,
@@ -861,7 +816,7 @@ for base, tag in [(alpaca_model, "alpaca"), (beaver_model, "beavertails")]:
     )
     trainer.train()
     adapter.save_pretrained(out_dir)
-    print(f"   ✅ Saved adapter1_{tag} → {out_dir}\n")
+    print(f"   Saved adapter1_{tag} → {out_dir}\n")
 
 
 
@@ -873,31 +828,29 @@ from peft import get_peft_model, PeftModel, LoraConfig
 from datasets import Dataset
 
 # 0) Cleanup & device
-print("🔄 Clearing GPU cache…")
+print(" Clearing GPU cache…")
 gc.collect(); torch.cuda.empty_cache()
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print(f"✅ Device: {device}\n")
+print(f" Device: {device}\n")
 
 # 1) Reload base + adapter1
-print("1/6 ▶ Loading base + first Honesty adapter…")
+print("1/6  Loading base + first Honesty adapter…")
 tokenizer  = AutoTokenizer.from_pretrained("meta-llama/Llama-2-7b-hf")
 tokenizer.pad_token = tokenizer.eos_token
 base_model = AutoModelForCausalLM.from_pretrained("./results/final_model_beavertails").to(device)
 adapter_h1 = PeftModel.from_pretrained(base_model, "./results/step3/truthfulqa_honesty1").to(device)
-print("   ✅ Loaded adapter1.\n")
+print("   Loaded adapter1.\n")
 
 # 2) Read injection CSVs
-print("2/6 ▶ Reading injected TQA prompts…")
+print("2/6 Reading injected TQA prompts…")
 inj_tr = pd.read_csv("")
 inj_te = pd.read_csv("")
-print(f"   • Rows: {len(inj_tr)} / {len(inj_te)}\n")
+print(f"    Rows: {len(inj_tr)} / {len(inj_te)}\n")
 
-# 3) Prepend CoT
+# 3) Prepend 
 prompt_col = inj_tr.columns[0]
-print(f"3/6 ▶ Prepending CoT to '{prompt_col}'")
-inj_tr[prompt_col] = "Chain of Thought: Let's think step by step. " + inj_tr[prompt_col].astype(str)
-inj_te[prompt_col] = "Chain of Thought: Let's think step by step. " + inj_te[prompt_col].astype(str)
-print("   ✅ CoT added.\n")
+print(f"3/6  Prepending to '{prompt_col}'")
+print("   added.\n")
 
 # 4) Tokenize
 def mk_ds(df):
@@ -910,19 +863,19 @@ def mk_ds(df):
     for k in enc: enc[k] = enc[k].to(device)
     return Dataset.from_dict(enc)
 
-print("4/6 ▶ Tokenizing…")
+print("4/6 Tokenizing…")
 ds_i_tr = mk_ds(inj_tr)
 ds_i_te = mk_ds(inj_te)
-print("   ✅ Tokenization done.\n")
+print("   Tokenization done.\n")
 
 # 5) Train second honesty adapter
-print("5/6 ▶ Training second Honesty adapter…")
+print("5/6 Training second Honesty adapter…")
 cfg2 = LoraConfig(r=64, lora_alpha=32, lora_dropout=0.1)
 adapter_h2 = get_peft_model(adapter_h1, cfg2).to(device)
 
 args2 = TrainingArguments(
     output_dir="./results/step3/truthfulqa_honesty2",
-    num_train_epochs=1,
+    num_train_epochs=3,
     per_device_train_batch_size=2,
     learning_rate=5e-4,
     logging_steps=10,
@@ -937,7 +890,7 @@ trainer2 = Trainer(
 )
 trainer2.train()
 adapter_h2.save_pretrained("./results/step3/truthfulqa_honesty2")
-print("   ✅ Adapter2 saved to ./results/step3/truthfulqa_honesty2\n")
+print("   Adapter2 saved to ./results/step3/truthfulqa_honesty2\n")
 
 # 6) Summary
 print("Block 2 complete: adapters at step3 folders.")
@@ -953,22 +906,22 @@ from peft import PeftModel
 # 0) Cleanup & device
 gc.collect(); torch.cuda.empty_cache()
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print(f"✅ Device: {device}\n")
+print(f" Device: {device}\n")
 
 # 1) Load base and second adapter
-print("1/4 ▶ Loading base + second Honesty adapter…")
+print("1/4  Loading base + second Honesty adapter…")
 base = AutoModelForCausalLM.from_pretrained("./results/final_model_beavertails").to(device)
 peft_h2 = PeftModel.from_pretrained(base, "./results/step3/truthfulqa_honesty2").to(device)
-print("   ✅ Adapter2 loaded.\n")
+print("   Adapter2 loaded.\n")
 
 # 2) Merge & unload
-print("2/4 ▶ Merging Honesty adapter…")
+print("2/4  Merging Honesty adapter…")
 merged = peft_h2.merge_and_unload().to(device)
 del peft_h2; gc.collect(); torch.cuda.empty_cache()
-print("   ✅ Merge done.\n")
+print("    Merge done.\n")
 
 # 3) Compute Task‑Vector
-print("3/4 ▶ Computing Honesty task vector…")
+print("3/4  Computing Honesty task vector…")
 tv = {}
 base_sd   = base.state_dict()
 merged_sd = merged.state_dict()
@@ -978,15 +931,15 @@ for k, v in merged_sd.items():
         if torch.norm(delta) > 0:
             tv[k] = delta.cpu()
 torch.save(tv, "./results/step3/truthfulqa_task_vector.pt")
-print(f"   ✅ Task vector saved ({len(tv)} layers)\n")
+print(f"   Task vector saved ({len(tv)} layers)\n")
 
 # 4) Apply & save final fused model
-print("4/4 ▶ Applying task vector & saving final model…")
+print("4/4 Applying task vector & saving final model…")
 sd = base_sd
 for k, v in tv.items():
     sd[k] = sd[k] + v.to(device)
 base.load_state_dict(sd)
 out = "./results/step3/final_model_step3"
 base.save_pretrained(out)
-print(f"🎉 Final fused model saved to {out}")
+print(f" Final fused model saved to {out}")
 
