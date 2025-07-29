@@ -9,18 +9,18 @@ import h5py
 try:
     import torch_xla.core.xla_model as xm
     device = xm.xla_device()
-    print("✅ Using TPU:", device)
+    print(" Using TPU:", device)
 except ImportError:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print("⚠️ TPU unavailable, using:", device)
+    print(" TPU unavailable, using:", device)
 
 # -----------------------------
 # Parameters
 # -----------------------------
 INPUT_PATH   = ""
 OUTPUT_PATH  = ""
-MAX_ROWS     = 140_000_000       
-BATCH_SIZE   = 1_000
+MAX_ROWS     =       
+BATCH_SIZE   = 
 INPUT_DIM    = None              # inferred below
 CALIB_DIM    = 64                # final embedding size
 HIDDEN_DIM   = 256
@@ -134,4 +134,4 @@ with h5py.File(OUTPUT_PATH, "w") as hf:
             print(f"Processed rows {offset:,}–{end:,}")
             offset = end
 
-print("✅ All done — embeddings saved to", OUTPUT_PATH)
+print("All done — embeddings saved to", OUTPUT_PATH)
