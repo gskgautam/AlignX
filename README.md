@@ -1,7 +1,7 @@
-# 🔧 AlignX (https://huggingface.co/impressive-east579/AlignX)
+# 🔧 AlignX
 ---
 
-## 🚀 Overview
+## 🚀 Overview (https://huggingface.co/impressive-east579/AlignX)
 
 AlignX introduces a two-stage optimization framework:
 
@@ -33,42 +33,13 @@ AlignX uses curated datasets for each alignment axis:
 
 **↑**: Higher is better  **↓**: Lower is better
 
----
-
-## 🛠️ Usage: Task_Vector.py
-
-The script `Stage1.py` is designed to analyze instruction-tuned language models on the listed datasets. It can be used with any of the supported models to compute task-specific representations and parameters, including:
-
-- ✅ Task Vectors  
-- 📊 Model Weights  
-- 🧱 Base Weights    
-
-### How to Use
-
-Simply pass your chosen model and dataset to `Stage1.py` to extract and compute the desired task representations. The script supports:
-
-- Any of the models listed above (e.g., LLaMA-2 7B, Mistral-7B, Gemma-7B, DeepSeek-7B)
-- Any of the supported datasets (e.g., Alpaca, BeaverTails, TruthfulQA)
-
-## 🔁 Follow-up Processing and Evaluation
-
-Once task vectors, weights, and base weights, and have been extracted in the form of Parameter and Task Matrixs using `Stage1.py`, you can proceed with further processing and evaluation using the following scripts:
-
-- `Stage2.py`
-
-This scripts are designed to apply modular calibration and editing strategies on the extracted task vectors to align model behavior with desired moderation outcomes.
-
-### 📈 Evaluation
-
-After applying any of the MoCaE methods, use `Evaluate.py` to assess the performance of the calibrated models.
+### 📈 Evaluation (https://github.com/git-disl/h3fusion/tree/main/evaluator)
 
 > ⚠️ Note: Make sure you have the appropriate access to the moderation models used for evaluation. These include:
 
 - GPT-4.0 (via OpenAI API)
 - beaver-dam-7b — available here: [PKU-Alignment/beaver-dam-7b](https://huggingface.co/PKU-Alignment/beaver-dam-7b)
 - GPT-4.0 (via OpenAI API)
-
-These evaluators are used to provide automated and/or human-aligned judgment of the calibrated outputs in terms of helpfulness, harmlessness, and honesty.
 
 🖥️ Note on Performance Variability:
 Evaluation results may vary by up to ±10% depending on your hardware configuration, especially GPU type, memory bandwidth, and compute environment. This margin reflects differences in numerical precision, runtime optimizations, and stability of training dynamics during task vector extraction and calibration.
