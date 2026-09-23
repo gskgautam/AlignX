@@ -1,4 +1,4 @@
-# 🔧 AlignX
+# 🔧 AlignX (https://huggingface.co/impressive-east579/AlignX)
 ---
 
 ## 🚀 Overview
@@ -35,30 +35,6 @@ AlignX uses curated datasets for each alignment axis:
 
 ---
 
-## 🧪 Experimental Setup
-
-All models are trained on 3 alignment axes using:
-
-- Latent space size: `k = 256`
-- Routing projection matrix: `W_r ∈ ℝ^{3 × 1024}`
-- Calibration weights: `λ₁ = 0.6`, `λ₂ = 0.4`
-- Softmax temperature: `1`
-- Clustering granularity: `ε = 0.05`
-- Optimizer: **AdamW** with:
-  - Learning rate: `2e-5`
-  - Batch size: `64`
-  - Weight decay: `0.01`
-- Training: `3 epochs`
-
-Evaluated on the following base LLMs:
-
-- [Mistral-7B](https://huggingface.co/mistralai/Mistral-7B-v0.1)
-- [Gemma-7B](https://huggingface.co/google/gemma-7b)
-- [DeepSeek-7B](https://huggingface.co/deepseek-ai/deepseek-llm-7b-base)
-- [LLaMA-2-7B](https://huggingface.co/meta-llama/Llama-2-7b-hf)
-
----
-
 ## 🛠️ Usage: Task_Vector.py
 
 The script `Stage1.py` is designed to analyze instruction-tuned language models on the listed datasets. It can be used with any of the supported models to compute task-specific representations and parameters, including:
@@ -90,7 +66,7 @@ After applying any of the MoCaE methods, use `Evaluate.py` to assess the perform
 
 - GPT-4.0 (via OpenAI API)
 - beaver-dam-7b — available here: [PKU-Alignment/beaver-dam-7b](https://huggingface.co/PKU-Alignment/beaver-dam-7b)
-- GPT-Judge (via OpenAI API)
+- GPT-4.0 (via OpenAI API)
 
 These evaluators are used to provide automated and/or human-aligned judgment of the calibrated outputs in terms of helpfulness, harmlessness, and honesty.
 
